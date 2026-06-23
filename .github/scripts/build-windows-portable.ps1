@@ -272,6 +272,7 @@ function Build-Osg {
     Get-File "https://github.com/openscenegraph/OpenSceneGraph/archive/OpenSceneGraph-$OsgVersion.tar.gz" $tarball
     $osgSrc = Join-Path $BuildRoot "osg-src"
     Expand-CleanArchive $tarball $osgSrc
+    Patch-OsgMsvcFpos $osgSrc
     $osgCmakeSrc = Find-CMakeSourceRoot $osgSrc
 
     Invoke-CMakeBuildInstall $osgCmakeSrc (Join-Path $BuildRoot "osg") $OsgRoot @(
@@ -282,6 +283,26 @@ function Build-Osg {
         "-DBUILD_DOCUMENTATION=OFF"
     )
     New-Item -ItemType File -Force -Path $stamp | Out-Null
+}
+
+function Patch-OsgMsvcFpos {
+    param([Parameter(Mandatory = $true)][string]$OsgSourceRoot)
+
+    $archiveCpp = Join-Path $OsgSourceRoot "src\osgPlugins\osga\OSGA_Archive.cpp"
+    if (-not (Test-Path -LiteralPath $archiveCpp)) {
+        throw "Cannot find OpenSceneGraph OSGA_Archive.cpp under $OsgSourceRoot"
+    }
+
+    $oldLine = "std::streamoff offset = pos.operator std::streamoff( ) - _FPOSOFF( position );"
+    $newLine = "std::streamoff offset = 0;"
+    $content = Get-Content -Raw -LiteralPath $archiveCpp
+    if ($content.Contains($oldLine)) {
+        $content = $content.Replace($oldLine, $newLine)
+        Set-Content -LiteralPath $archiveCpp -Encoding ASCII -Value $content
+    }
+    elseif (-not $content.Contains($newLine)) {
+        throw "OpenSceneGraph OSGA_Archive.cpp did not match the expected _FPOSOFF patch context."
+    }
 }
 
 function Build-Deps {

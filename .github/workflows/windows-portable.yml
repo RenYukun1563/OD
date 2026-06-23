@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ci/deps
-          key: od8-windows-deps-${{ env.QT_VERSION }}-${{ env.OSG_VERSION }}-${{ env.PROJ_VERSION }}-${{ env.SQLITE_VERSION }}-${{ env.HDF5_VERSION }}-${{ env.ZLIB_VERSION }}-v3-zlib-hdf5
+          key: od8-windows-deps-${{ env.QT_VERSION }}-${{ env.OSG_VERSION }}-${{ env.PROJ_VERSION }}-${{ env.SQLITE_VERSION }}-${{ env.HDF5_VERSION }}-${{ env.ZLIB_VERSION }}-v4-osg-msvc-fpos
 
       - name: Build third-party dependencies
         shell: pwsh
