@@ -1,0 +1,68 @@
+name: Windows portable build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - od8.0_rel
+
+jobs:
+  build-windows-portable:
+    runs-on: windows-2022
+    timeout-minutes: 720
+
+    env:
+      ODT_VERSION: "8.0"
+      QT_VERSION: "6.8.3"
+      OSG_VERSION: "3.6.5"
+      PROJ_VERSION: "9.6.0"
+      SQLITE_VERSION: "3490100"
+      HDF5_VERSION: "1.14.6"
+      BUILD_TYPE: Release
+      PARALLEL: 4
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          choco install ninja 7zip -y --no-progress
+          if (Test-Path "${env:ProgramFiles}\7-Zip") {
+            Add-Content $env:GITHUB_PATH "${env:ProgramFiles}\7-Zip"
+          }
+          cmake --version
+          ninja --version
+          python --version
+
+      - name: Restore third-party cache
+        uses: actions/cache@v4
+        with:
+          path: .ci/deps
+          key: od8-windows-deps-${{ env.QT_VERSION }}-${{ env.OSG_VERSION }}-${{ env.PROJ_VERSION }}-${{ env.SQLITE_VERSION }}-${{ env.HDF5_VERSION }}-v1
+
+      - name: Build third-party dependencies
+        shell: pwsh
+        run: .github/scripts/build-windows-portable.ps1 deps
+
+      - name: Build OpendTect
+        shell: pwsh
+        run: .github/scripts/build-windows-portable.ps1 opendtect
+
+      - name: Upload portable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendtect-${{ env.ODT_VERSION }}-windows-x64
+          path: .ci/artifacts/*
+          if-no-files-found: error

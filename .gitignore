@@ -10,6 +10,7 @@ src/*/launch-*.cmd
 plugins/*/launch-*.cmd
 spec/*/launch-*.cmd
 external/
+.ci/
 .arcconfig
 CMakeModules/FindOpendTect.cmake
 CMakeModules/Info.plist
