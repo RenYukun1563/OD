@@ -134,20 +134,24 @@ function Install-Qt {
 }
 
 function Install-Sqlite {
-    $stamp = Join-Path $SqliteRoot ".od-sqlite-$SqliteVersion.stamp"
+    $stamp = Join-Path $SqliteRoot ".od-sqlite-$SqliteVersion-tools.stamp"
     if (Test-Path -LiteralPath $stamp) {
         return
     }
 
     $amalgamationZip = Join-Path $SourceRoot "sqlite-amalgamation-$SqliteVersion.zip"
     $dllZip = Join-Path $SourceRoot "sqlite-dll-win-x64-$SqliteVersion.zip"
+    $toolsZip = Join-Path $SourceRoot "sqlite-tools-win-x64-$SqliteVersion.zip"
     Get-File "https://www.sqlite.org/2025/sqlite-amalgamation-$SqliteVersion.zip" $amalgamationZip
     Get-File "https://www.sqlite.org/2025/sqlite-dll-win-x64-$SqliteVersion.zip" $dllZip
+    Get-File "https://www.sqlite.org/2025/sqlite-tools-win-x64-$SqliteVersion.zip" $toolsZip
 
     $sqliteSrc = Join-Path $BuildRoot "sqlite-src"
     $sqliteDll = Join-Path $BuildRoot "sqlite-dll"
+    $sqliteTools = Join-Path $BuildRoot "sqlite-tools"
     Expand-CleanArchive $amalgamationZip $sqliteSrc
     Expand-CleanArchive $dllZip $sqliteDll
+    Expand-CleanArchive $toolsZip $sqliteTools
 
     $headersDirItem = Get-ChildItem -LiteralPath $sqliteSrc -Directory | Select-Object -First 1
     $headersDir = if ($headersDirItem) { $headersDirItem.FullName } else { $sqliteSrc }
@@ -161,11 +165,13 @@ function Install-Sqlite {
     Copy-Item -LiteralPath (Join-Path $headersDir "sqlite3ext.h") -Destination (Join-Path $SqliteRoot "include") -Force
     $dllFile = Get-ChildItem -LiteralPath $sqliteDll -Recurse -Filter sqlite3.dll | Select-Object -First 1
     $defFileItem = Get-ChildItem -LiteralPath $sqliteDll -Recurse -Filter sqlite3.def | Select-Object -First 1
-    if (-not $dllFile -or -not $defFileItem) {
-        throw "SQLite DLL archive did not contain sqlite3.dll and sqlite3.def"
+    $exeFile = Get-ChildItem -LiteralPath $sqliteTools -Recurse -Filter sqlite3.exe | Select-Object -First 1
+    if (-not $dllFile -or -not $defFileItem -or -not $exeFile) {
+        throw "SQLite archives did not contain sqlite3.dll, sqlite3.def, and sqlite3.exe"
     }
 
     Copy-Item -LiteralPath $dllFile.FullName -Destination (Join-Path $SqliteRoot "bin\sqlite3.dll") -Force
+    Copy-Item -LiteralPath $exeFile.FullName -Destination (Join-Path $SqliteRoot "bin\sqlite3.exe") -Force
 
     $defFile = $defFileItem.FullName
     Invoke-Native lib.exe @("/nologo", "/def:$defFile", "/machine:x64", "/out:$(Join-Path $SqliteRoot 'lib\sqlite3.lib')")
@@ -187,6 +193,7 @@ function Build-Proj {
     Invoke-CMakeBuildInstall $projCmakeSrc (Join-Path $BuildRoot "proj") $ProjRoot @(
         "-DBUILD_SHARED_LIBS=ON",
         "-DSQLite3_ROOT=$SqliteRoot",
+        "-DEXE_SQLITE3=$(Join-Path $SqliteRoot 'bin\sqlite3.exe')",
         "-DBUILD_TESTING=OFF",
         "-DBUILD_APPS=OFF",
         "-DENABLE_CURL=OFF",

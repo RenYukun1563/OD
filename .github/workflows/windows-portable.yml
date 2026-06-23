@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ci/deps
-          key: od8-windows-deps-${{ env.QT_VERSION }}-${{ env.OSG_VERSION }}-${{ env.PROJ_VERSION }}-${{ env.SQLITE_VERSION }}-${{ env.HDF5_VERSION }}-v1
+          key: od8-windows-deps-${{ env.QT_VERSION }}-${{ env.OSG_VERSION }}-${{ env.PROJ_VERSION }}-${{ env.SQLITE_VERSION }}-${{ env.HDF5_VERSION }}-v2-sqlite-tools
 
       - name: Build third-party dependencies
         shell: pwsh
