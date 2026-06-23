@@ -20,6 +20,7 @@ $OsgVersion = if ($env:OSG_VERSION) { $env:OSG_VERSION } else { "3.6.5" }
 $ProjVersion = if ($env:PROJ_VERSION) { $env:PROJ_VERSION } else { "9.6.0" }
 $SqliteVersion = if ($env:SQLITE_VERSION) { $env:SQLITE_VERSION } else { "3490100" }
 $Hdf5Version = if ($env:HDF5_VERSION) { $env:HDF5_VERSION } else { "1.14.6" }
+$ZlibVersion = if ($env:ZLIB_VERSION) { $env:ZLIB_VERSION } else { "1.3.1" }
 $BuildType = if ($env:BUILD_TYPE) { $env:BUILD_TYPE } else { "Release" }
 $Parallel = if ($env:PARALLEL) { [int]$env:PARALLEL } else { [Environment]::ProcessorCount }
 $OdtVersion = if ($env:ODT_VERSION) { $env:ODT_VERSION } else { "8.0" }
@@ -29,6 +30,7 @@ $SqliteRoot = Join-Path $DepsRoot "sqlite"
 $ProjRoot = Join-Path $DepsRoot "proj"
 $Hdf5Root = Join-Path $DepsRoot "hdf5"
 $OsgRoot = Join-Path $DepsRoot "osg"
+$ZlibRoot = Join-Path $DepsRoot "zlib"
 $SourceRoot = Join-Path $DepsRoot "src"
 
 New-Item -ItemType Directory -Force -Path $DepsRoot, $BuildRoot, $InstallRoot, $ArtifactRoot, $SourceRoot | Out-Null
@@ -217,6 +219,12 @@ function Build-Hdf5 {
 
     Invoke-CMakeBuildInstall $hdf5CmakeSrc (Join-Path $BuildRoot "hdf5") $Hdf5Root @(
         "-DBUILD_SHARED_LIBS=ON",
+        "-DZLIB_ROOT=$ZlibRoot",
+        "-DZLIB_LIBRARY=$(Join-Path $ZlibRoot 'lib\zlib.lib')",
+        "-DZLIB_INCLUDE_DIR=$(Join-Path $ZlibRoot 'include')",
+        "-DHDF5_ENABLE_Z_LIB_SUPPORT=ON",
+        "-DHDF5_ENABLE_SZIP_SUPPORT=OFF",
+        "-DHDF5_ENABLE_SZIP_ENCODING=OFF",
         "-DHDF5_BUILD_CPP_LIB=ON",
         "-DHDF5_BUILD_HL_LIB=OFF",
         "-DHDF5_BUILD_TOOLS=OFF",
@@ -228,6 +236,28 @@ function Build-Hdf5 {
 
     if (-not (Test-Path -LiteralPath (Join-Path $Hdf5Root "cmake\hdf5\hdf5-config.cmake"))) {
         throw "HDF5 CMake package was not installed under $Hdf5Root\cmake\hdf5"
+    }
+    New-Item -ItemType File -Force -Path $stamp | Out-Null
+}
+
+function Build-Zlib {
+    $stamp = Join-Path $ZlibRoot ".od-zlib-$ZlibVersion.stamp"
+    if (Test-Path -LiteralPath $stamp) {
+        return
+    }
+
+    $tarball = Join-Path $SourceRoot "zlib-$ZlibVersion.tar.gz"
+    Get-File "https://github.com/madler/zlib/archive/refs/tags/v$ZlibVersion.tar.gz" $tarball
+    $zlibSrc = Join-Path $BuildRoot "zlib-src"
+    Expand-CleanArchive $tarball $zlibSrc
+    $zlibCmakeSrc = Find-CMakeSourceRoot $zlibSrc
+
+    Invoke-CMakeBuildInstall $zlibCmakeSrc (Join-Path $BuildRoot "zlib") $ZlibRoot @(
+        "-DBUILD_SHARED_LIBS=ON"
+    )
+
+    if (-not (Test-Path -LiteralPath (Join-Path $ZlibRoot "lib\zlib.lib"))) {
+        throw "zlib import library was not installed under $ZlibRoot\lib"
     }
     New-Item -ItemType File -Force -Path $stamp | Out-Null
 }
@@ -258,6 +288,7 @@ function Build-Deps {
     Install-Qt
     Install-Sqlite
     Build-Proj
+    Build-Zlib
     Build-Hdf5
     Build-Osg
 }
@@ -270,7 +301,8 @@ function Copy-RuntimeDlls {
         (Join-Path $OsgRoot "bin"),
         (Join-Path $ProjRoot "bin"),
         (Join-Path $SqliteRoot "bin"),
-        (Join-Path $Hdf5Root "bin")
+        (Join-Path $Hdf5Root "bin"),
+        (Join-Path $ZlibRoot "bin")
     )) {
         if (Test-Path -LiteralPath $dir) {
             Get-ChildItem -LiteralPath $dir -Filter *.dll -File | Copy-Item -Destination $RuntimeDir -Force
@@ -279,8 +311,8 @@ function Copy-RuntimeDlls {
 }
 
 function Build-OpendTect {
-    $env:Path = "$QtRoot\bin;$OsgRoot\bin;$ProjRoot\bin;$SqliteRoot\bin;$Hdf5Root\bin;$env:Path"
-    $prefixPath = @($QtRoot, $OsgRoot, $ProjRoot, $SqliteRoot, $Hdf5Root) -join ';'
+    $env:Path = "$QtRoot\bin;$OsgRoot\bin;$ProjRoot\bin;$SqliteRoot\bin;$Hdf5Root\bin;$ZlibRoot\bin;$env:Path"
+    $prefixPath = @($QtRoot, $OsgRoot, $ProjRoot, $SqliteRoot, $Hdf5Root, $ZlibRoot) -join ';'
     $odBuild = Join-Path $BuildRoot "opendtect"
     $packageRoot = Join-Path $ArtifactRoot "packages"
 
@@ -303,6 +335,8 @@ function Build-OpendTect {
         "-DSQLite3_ROOT=$SqliteRoot",
         "-DHDF5_ROOT=$Hdf5Root",
         "-DHDF5_DIR=$(Join-Path $Hdf5Root 'cmake\hdf5')",
+        "-DZLIB_ROOT=$ZlibRoot",
+        "-DZLIB_LIBRARY=$(Join-Path $ZlibRoot 'lib\zlib.lib')",
         "-DOD_NO_PROJ=OFF",
         "-DOD_NO_OSG=OFF",
         "-DOD_NO_QT=OFF",
