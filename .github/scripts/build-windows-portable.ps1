@@ -406,13 +406,20 @@ function Build-OpendTect {
         Pop-Location
     }
 
-    try {
-        Invoke-Native cmake @("--build", $odBuild, "--config", $BuildType, "--target", "packages", "--parallel", $Parallel)
-        Get-ChildItem -LiteralPath $packageRoot -File -ErrorAction SilentlyContinue |
-            Copy-Item -Destination $ArtifactRoot -Force
+    if ($env:BUILD_OFFICIAL_PACKAGES -eq "1") {
+        try {
+            Invoke-Native cmake @("--build", $odBuild, "--config", $BuildType, "--target", "packages", "--parallel", $Parallel)
+            Get-ChildItem -LiteralPath $packageRoot -File -ErrorAction SilentlyContinue |
+                Copy-Item -Destination $ArtifactRoot -Force
+        }
+        catch {
+            Write-Warning "OpendTect packages target failed; portable zip was still created. $($_.Exception.Message)"
+            $global:LASTEXITCODE = 0
+        }
     }
-    catch {
-        Write-Warning "OpendTect packages target failed; portable zip was still created. $($_.Exception.Message)"
+    else {
+        Write-Host "Skipping optional OpendTect packages target. Portable zip was created at $zipPath."
+        $global:LASTEXITCODE = 0
     }
 }
 
